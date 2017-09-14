@@ -10,7 +10,8 @@ uniform mat3 nMat;
 void main(void)
 {
 
-    vec3 nEC = gl_Normal;
+    vec3 nEC = nMat * normalize(gl_Normal);
+    // vec3 nEC = gl_Normal;
     // Used to accumulate ambient, diffuse and specular contributions
     // Note: it is a vec3 being constructed with a single value which
     // is used for all 3 components
@@ -25,7 +26,7 @@ void main(void)
 
     // Light direction vector. Default for LIGHT0 is a directional light
     // along z axis for all vertices, i.e. <0, 0, 1>
-    vec3 lEC = vec3( 0.5, 0.5, 0.5 );
+    vec3 lEC = vec3( 0, 0, 1 );
 
     // Test if normal points towards light source, i.e. if polygon
     // faces toward the light - if not then no diffuse or specular

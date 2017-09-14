@@ -298,7 +298,7 @@ glm::vec3 computeLighting(glm::vec3 & rEC, glm::vec3 & nEC)
     }
     // Light direction vector. Default for LIGHT0 is a directional light
     // along z axis for all vertices, i.e. <0, 0, 1>
-    glm::vec3 lEC( 0.5, 0.5, 0.5 );
+    glm::vec3 lEC( 0, 0, 1 );
 
     // Test if normal points towards light source, i.e. if polygon
     // faces toward the light - if not then no diffuse or specular
@@ -516,7 +516,7 @@ void drawSineWave(int tess)
 
             rEC = glm::vec3(glm::vec4(r, 1.0));
             if (g.lighting) {
-                nEC = normalMatrix * glm::normalize(n);
+                nEC = glm::normalize(n);
                 if (g.fixed) {
                     glNormal3fv(&nEC[0]);
                 } else {
@@ -538,7 +538,7 @@ void drawSineWave(int tess)
 
             rEC = glm::vec3(glm::vec4(r, 1.0));
             if (g.lighting) {
-                nEC = normalMatrix * glm::normalize(n);
+                nEC = glm::normalize(n);
                 if (g.fixed) {
                     glNormal3fv(&nEC[0]);
                 } else {
@@ -575,7 +575,7 @@ void drawSineWave(int tess)
                 }
 
                 rEC = glm::vec3(glm::vec4(r, 1.0));
-                nEC = normalMatrix * glm::normalize(n);
+                nEC = glm::normalize(n);
                 drawVector(rEC, nEC, 0.05, true, yellow);
             }
         }
@@ -588,6 +588,9 @@ void drawSineWave(int tess)
     glUseProgram(0);
 }
 
+void showInfo(){
+    printf("Shaders (%i) | Fixed Lighting (%i) | \n", g.shader, g.fixed);
+}
 
 void idle()
 {
@@ -610,6 +613,7 @@ void idle()
         g.frameRate = g.frameCount / dt;
         if (debug[d_OSD])
         printf("dt %f framecount %d framerate %f\n", dt, g.frameCount, g.frameRate);
+        showInfo();
         g.lastStatsDisplayT = t;
         g.frameCount = 0;
     }
@@ -748,7 +752,6 @@ void keyboard(unsigned char key, int x, int y)
         break;
         case 'f':
         g.fixed = !g.fixed;
-        printf("fixed: %i\n", g.fixed);
         glutPostRedisplay();
         break;
         case 'm':
@@ -805,7 +808,6 @@ void keyboard(unsigned char key, int x, int y)
         case 'g': // Toggle Shaderx
         g.shader++;
         if(g.shader > 1) g.shader = 0;
-        printf("using shader: %i\n", g.shader);
         break;
         case '1':
         g.ambient = !g.ambient;
