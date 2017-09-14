@@ -11,9 +11,17 @@ clang -o sine_wave shaders.c sine_wave.cpp -framework Carbon -framework OpenGL -
 #include <stdio.h>
 #include <math.h>
 
+#if __APPLE__
 #include <OpenGL/glu.h>
 #include <GLUT/glut.h>
 #include <OpenGL/gl.h>
+#else
+#include <GL/glew.h>
+#include <GL/glut.h>
+#include <GL/glu.h>
+#include <GL/gl.h>
+#endif
+
 
 #include "shaders.h"
 #define GL_GLEXT_PROTOTYPES
@@ -136,6 +144,12 @@ void init(void)
     shaderProgram = getShader("shader.vert", "shader.frag");
     shaderProgram2 = getShader("shader2.vert", "shader2.frag");
     */
+    GLenum err = glewInit();
+    if (GLEW_OK != err)
+    {
+      /* Problem: glewInit failed, something is seriously wrong. */
+      fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
+    }
 
     shaderProgram = getShader("shader.vert", "shader.frag");
     // printf("Shaderprogram: %i\n", shaderProgram);
@@ -887,6 +901,7 @@ void motion(int x, int y)
 int main(int argc, char** argv)
 {
     glutInit(&argc, argv);
+
     glutInitDisplayMode (GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize (1024, 1024);
     glutInitWindowPosition (100, 100);
