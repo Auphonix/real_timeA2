@@ -6,10 +6,9 @@ float NdotL;
 
 uniform mat4 mvMat;
 uniform mat3 nMat;
+uniform float passthrough;
 
-void main(void)
-{
-
+vec3 blinnPhongLighting(){
     vec3 nEC = nMat * normalize(gl_Normal);
     // vec3 nEC = gl_Normal;
     // Used to accumulate ambient, diffuse and specular contributions
@@ -68,8 +67,24 @@ void main(void)
         color += specular;
     }
 
-    // Get color here
-    n_color = vec4(color, 1);
+    return color;
+}
+
+// MAIN
+void main(void)
+{
+
+    if(passthrough == 0.0){ // Fixed mode disabled
+        // Use the color calculated from computeLighting()
+        // As there are no normals being passed to the shader
+        n_color = gl_Color;
+    }
+    else{ // Fixed mode enabled
+        // Calculate lighting using blinnPhong
+        vec3 color = blinnPhongLighting();
+        n_color = vec4(color, 1);
+    }
+
 
     // Equivalent to: gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_Vertex
     // os - object space, es - eye space, cs - clip space

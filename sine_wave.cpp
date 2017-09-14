@@ -75,7 +75,7 @@ typedef struct {
     bool diffuse;
     bool specular;
     bool ambient;
-    int shader;
+    bool shader;
 } Global;
 Global g = { wave, false, 0.0, 0.0, fill, true, false, false, false, 0, 0, 128, 3, 0, 0.0, 1.0, 0, false, false, false, true, true, true, 0 };
 
@@ -144,12 +144,15 @@ void init(void)
     shaderProgram = getShader("shader.vert", "shader.frag");
     shaderProgram2 = getShader("shader2.vert", "shader2.frag");
     */
+    #if __APPLE__
+    #else
     GLenum err = glewInit();
     if (GLEW_OK != err)
     {
       /* Problem: glewInit failed, something is seriously wrong. */
       fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
     }
+    #endif
 
     shaderProgram = getShader("shader.vert", "shader.frag");
     // printf("Shaderprogram: %i\n", shaderProgram);
@@ -369,7 +372,10 @@ void setupShader(){
     glUniformMatrix4fv(mvMat_loc, 1, false, &modelViewMatrix[0][0]);
 
     GLint nMat_loc = glGetUniformLocation(shaderProgram, "nMat");
-    glUniformMatrix3fv(nMat_loc, 1, false, &modelViewMatrix[0][0]);
+    glUniformMatrix3fv(nMat_loc, 1, false, &normalMatrix[0][0]);
+
+    GLint passthrough_loc = glGetUniformLocation(shaderProgram, "passthrough");
+    glUniform1f(passthrough_loc, float(g.fixed));
 }
 
 void drawGrid(int tess)
@@ -411,10 +417,13 @@ void drawGrid(int tess)
                 n.y = 1.0;
                 n.z = 0.0;
             }
-
-            rEC = glm::vec3(modelViewMatrix * glm::vec4(r, 1.0));
+            // IF shader is used use modelViewMatrix on GPU
+            if(g.shader) rEC = glm::vec3(glm::vec4(r, 1.0));
+            else rEC = glm::vec3(modelViewMatrix * glm::vec4(r, 1.0));
             if (g.lighting) {
-                nEC = normalMatrix * glm::normalize(n);
+                // Only use normals on GPU if fixed is enabled
+                if(g.shader && g.fixed) nEC = glm::normalize(n);
+                else nEC = normalMatrix * glm::normalize(n);
                 if (g.fixed) {
                     glNormal3fv(&nEC[0]);
                 } else {
@@ -426,9 +435,13 @@ void drawGrid(int tess)
 
             r.z += stepSize;
 
-            rEC = glm::vec3(modelViewMatrix * glm::vec4(r, 1.0));
+            // IF shader is used use modelViewMatrix on GPU
+            if(g.shader) rEC = glm::vec3(glm::vec4(r, 1.0));
+            else rEC = glm::vec3(modelViewMatrix * glm::vec4(r, 1.0));
             if (g.lighting) {
-                nEC = normalMatrix * glm::normalize(n);
+                // Only use normals on GPU if fixed is enabled
+                if(g.shader && g.fixed) nEC = glm::normalize(n);
+                else nEC = normalMatrix * glm::normalize(n);
                 if (g.fixed) {
                     glNormal3fv(&nEC[0]);
                 } else {
@@ -458,8 +471,11 @@ void drawGrid(int tess)
                 n.y = 1.0;
                 n.x = 0.0;
                 n.z = 0.0;
-                rEC = glm::vec3(modelViewMatrix * glm::vec4(r, 1.0));
-                nEC = normalMatrix * glm::normalize(n);
+                if(g.shader) rEC = glm::vec3(glm::vec4(r, 1.0));
+                else rEC = glm::vec3(modelViewMatrix * glm::vec4(r, 1.0));
+
+                if(g.shader) nEC = glm::normalize(n);
+                else nEC = normalMatrix * glm::normalize(n);
                 drawVector(rEC, nEC, 0.05, true, yellow);
             }
         }
@@ -476,9 +492,6 @@ void drawGrid(int tess)
 
 void drawSineWave(int tess)
 {
-    if (g.shader == 1) setupShader();
-    else glUseProgram(0);
-
     const float A1 = 0.25, k1 = 2.0 * M_PI, w1 = 0.25;
     const float A2 = 0.25, k2 = 2.0 * M_PI, w2 = 0.25;
     float stepSize = 2.0 / tess;
@@ -527,14 +540,17 @@ void drawSineWave(int tess)
                     n.z = - A2 * k2 * cosf(k2 * r.z + w2 * t);
                 }
             }
-
-            rEC = glm::vec3(glm::vec4(r, 1.0));
+            // IF shader is used use modelViewMatrix on GPU
+            if(g.shader) rEC = glm::vec3(glm::vec4(r, 1.0));
+            else rEC = glm::vec3(modelViewMatrix * glm::vec4(r, 1.0));
             if (g.lighting) {
-                nEC = glm::normalize(n);
-                if (g.fixed) {
-                    glNormal3fv(&nEC[0]);
-                } else {
+                // Only use normals on GPU if fixed is enabled
+                if(g.shader && g.fixed) nEC = glm::normalize(n);
+                else nEC = normalMatrix * glm::normalize(n);
 
+                if (g.fixed) { // If Fixed use pipeline
+                    glNormal3fv(&nEC[0]);
+                } else { // Else calculate lighting
                     glm::vec3 c = computeLighting(rEC, nEC);
                     glColor3fv(&c[0]);
                 }
@@ -549,10 +565,13 @@ void drawSineWave(int tess)
                     n.z = - A2 * k2 * cosf(k2 * r.z + w2 * t);
                 }
             }
-
-            rEC = glm::vec3(glm::vec4(r, 1.0));
+            // IF shader is used use modelViewMatrix on GPU
+            if(g.shader) rEC = glm::vec3(glm::vec4(r, 1.0));
+            else rEC = glm::vec3(modelViewMatrix * glm::vec4(r, 1.0));
             if (g.lighting) {
-                nEC = glm::normalize(n);
+                // Only use normals on GPU if fixed is enabled
+                if(g.shader && g.fixed) nEC = glm::normalize(n);
+                else nEC = normalMatrix * glm::normalize(n);
                 if (g.fixed) {
                     glNormal3fv(&nEC[0]);
                 } else {
@@ -588,8 +607,12 @@ void drawSineWave(int tess)
                     n.z = - A2 * k2 * cosf(k2 * r.z + w2 * t);
                 }
 
-                rEC = glm::vec3(glm::vec4(r, 1.0));
-                nEC = glm::normalize(n);
+                if(g.shader) rEC = glm::vec3(glm::vec4(r, 1.0));
+                else rEC = glm::vec3(modelViewMatrix * glm::vec4(r, 1.0));
+
+                if(g.shader) nEC = glm::normalize(n);
+                else nEC = normalMatrix * glm::normalize(n);
+
                 drawVector(rEC, nEC, 0.05, true, yellow);
             }
         }
@@ -599,7 +622,6 @@ void drawSineWave(int tess)
         printf("%s %d\n", __FILE__, __LINE__);
         printf("displaySineWave: %s\n", gluErrorString(err));
     }
-    glUseProgram(0);
 }
 
 void showInfo(){
@@ -725,10 +747,18 @@ void display()
     }
 
     drawAxes(5.0);
+
+    // SHADERS
+    if (g.shader == 1) setupShader();
+    else glUseProgram(0);
+
     if (g.shape == grid)
     drawGrid(g.tess);
     else
     drawSineWave(g.tess);
+
+    glUseProgram(0);
+    // END SHADERS
 
     if (g.displayOSD)
     displayOSD();
@@ -820,8 +850,7 @@ void keyboard(unsigned char key, int x, int y)
         glutPostRedisplay();
         break;
         case 'g': // Toggle Shaderx
-        g.shader++;
-        if(g.shader > 1) g.shader = 0;
+        g.shader = !g.shader;
         break;
         case '1':
         g.ambient = !g.ambient;
@@ -904,7 +933,7 @@ int main(int argc, char** argv)
 
     glutInitDisplayMode (GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize (1024, 1024);
-    glutInitWindowPosition (100, 100);
+    glutInitWindowPosition (0, 100);
     glutCreateWindow (argv[0]);
     init();
     glutDisplayFunc(display);
