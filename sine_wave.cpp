@@ -81,6 +81,14 @@ typedef struct {
 Global g = { wave, false, 0.0, 0.0, fill, true, false, false, false, 0, 0, 128, 3, 0, 0.0, 1.0, 0, false, false, false, true, true, true, false, false,};
 
 typedef struct {
+    float x, y, z;
+} Vec3f;
+
+typedef struct {
+    Vec3f pos, normal;
+} Vertex;
+
+typedef struct {
     Vertex* verts;
     unsigned int* indices;
     size_t numVerts, numIndices;
@@ -146,7 +154,13 @@ void printMatrixColumnMajor(float *m, int n)
 }
 
 Mesh* createMesh(size_t numVerts, size_t numIndices){
-
+    Mesh* mesh = (Mesh*) malloc(sizeof(Mesh));
+    mesh->numVerts = numVerts;
+    mesh->numIndices = numIndices;
+    mesh->verts = (Vertex*) calloc(numVerts, sizeof(Vertex));
+    mesh->indices = (unsigned int*) calloc(numIndices, sizeof(int));
+    
+    return mesh;
 }
 
 void buildVBO(int tess){
