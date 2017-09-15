@@ -77,8 +77,9 @@ typedef struct {
     bool ambient;
     bool shader;
     bool lightingMode; // T Per-Pixel, F Per-Vertex
+    bool vbo;
 } Global;
-Global g = { wave, false, 0.0, 0.0, fill, true, false, false, false, 0, 0, 128, 3, 0, 0.0, 1.0, 0, false, false, false, true, true, true, false, false,};
+Global g = { wave, false, 0.0, 0.0, fill, true, false, false, false, 0, 0, 128, 3, 0, 0.0, 1.0, 0, false, false, false, true, true, true, false, false, false};
 
 typedef struct {
     float x, y, z;
@@ -94,6 +95,8 @@ typedef struct {
     size_t numVerts, numIndices;
     GLuint vbo, ibo, tbo;
 } Mesh;
+
+Mesh* gridMesh;
 
 typedef enum { inactive, rotate, pan, zoom } CameraControl;
 
@@ -159,26 +162,34 @@ Mesh* createMesh(size_t numVerts, size_t numIndices){
     mesh->numIndices = numIndices;
     mesh->verts = (Vertex*) calloc(numVerts, sizeof(Vertex));
     mesh->indices = (unsigned int*) calloc(numIndices, sizeof(int));
-    
+
     return mesh;
 }
 
 void buildVBO(int tess){
+    gridMesh = createMesh((tess + 1) * (tess * 1), tess * tess * 6);
+
     float stepSize = 2.0 / tess;
     glm::vec3 r, n, rEC, nEC;
     int i, j;
 
+    // Verts
+    size_t index = 0;
     for (j = 0; j < tess; j++) {
         for (i = 0; i <= tess; i++) {
             r.x = -1.0 + i * stepSize;
             r.y = 0.0;
             r.z = -1.0 + j * stepSize;
 
-            glVertex3fv(&rEC[0]);
-
+            gridMesh->verts[index].pos = (Vec3f){r.x, r.y, r.z};
+            gridMesh->verts[index].normal.y = 1.0;
+            gridMesh->indices[index] = index;
+            index++;
             r.z += stepSize;
-
-            glVertex3fv(&rEC[0]);
+            gridMesh->verts[index].pos = (Vec3f){r.x, r.y, r.z};
+            gridMesh->verts[index].normal.y = 1.0;
+            gridMesh->indices[index] = index;
+            index++;
         }
     }
 }
@@ -673,6 +684,7 @@ void drawSineWave(int tess)
 void showInfo(){
     printf("\n\nShaders \t\t(%i)\nFixed Lighting \t\t(%i)\nFrameRate \t\t(%.0f)\n", g.shader, g.fixed, g.frameRate);
     printf("Frametime \t\t(%.0f)\nPer Pixel \t\t(%i)\n", 1.0 / g.frameRate * 1000.0, g.lightingMode);
+    printf("VBO \t\t\t(%i)\n", g.vbo);
 }
 
 void idle()
@@ -878,6 +890,7 @@ void keyboard(unsigned char key, int x, int y)
         glutPostRedisplay();
         break;
         case 'v':
+        g.vbo = !g.vbo;
         printf("vbos not implemented\n");
         break;
         case '+':
