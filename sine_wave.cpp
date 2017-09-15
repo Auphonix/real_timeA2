@@ -22,6 +22,7 @@ clang -o sine_wave shaders.c sine_wave.cpp -framework Carbon -framework OpenGL -
 #include <GL/gl.h>
 #endif
 
+#define BUFFER_OFFSET(i) ((void*)(i))
 
 #include "shaders.h"
 #define GL_GLEXT_PROTOTYPES
@@ -166,6 +167,32 @@ Mesh* createMesh(size_t numVerts, size_t numIndices){
     return mesh;
 }
 
+void bindVBOs(GLuint vbo, GLuint ibo){
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+}
+
+void unbindVBOs(){
+    int buffer;
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &buffer);
+    if (buffer != 0) glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &buffer);
+    if (buffer != 0) glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    glDisableClientState(GL_VERTEX_ARRAY);
+}
+
+void useVBO(){
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
+    bindVBOs(gridMesh->vbo, gridMesh->ibo);
+
+    glVertexPointer(3, GL_FLOAT, sizeof(Vertex), BUFFER_OFFSET(0));
+    glNormalPointer(GL_FLOAT, sizeof(Vertex), BUFFER_OFFSET(sizeof(Vec3f)));
+    unbindVBOs();
+}
+
 void buildVBO(int tess){
     gridMesh = createMesh((tess + 1) * (tess * 1), tess * tess * 6);
 
@@ -192,6 +219,17 @@ void buildVBO(int tess){
             index++;
         }
     }
+
+    // BUILD THE VBO
+    glGenBuffers(1, &gridMesh->vbo);
+    glGenBuffers(1, &gridMesh->ibo);
+    bindVBOs(gridMesh->vbo, gridMesh->ibo);
+    glBufferData(GL_ARRAY_BUFFER, gridMesh->numVerts * sizeof(Vertex), gridMesh->verts, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, gridMesh->numIndices *sizeof(unsigned int), gridMesh->indices, GL_STATIC_DRAW);
+    unbindVBOs();
+
+
+
 }
 
 void init(void)
@@ -811,11 +849,15 @@ void display()
     if (g.shader == 1) setupShader();
     else glUseProgram(0);
 
-    if (g.shape == grid)
-    drawGrid(g.tess);
-    else
-    drawSineWave(g.tess);
-
+    if (g.vbo == true){
+        useVBO();
+    }
+    else{
+        if (g.shape == grid)
+        drawGrid(g.tess);
+        else
+        drawSineWave(g.tess);
+    }
     glUseProgram(0);
     // END SHADERS
 
