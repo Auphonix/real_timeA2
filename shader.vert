@@ -1,7 +1,4 @@
-varying float depth;
-varying vec4 n_color;
-
-float shininess = 20.0;
+float shininess = 50.0;
 float NdotL;
 
 // ModelViewMatrix and Normal Matrix
@@ -9,14 +6,16 @@ uniform mat4 mvMat;
 uniform mat3 nMat;
 
 uniform float passthrough; // Fixed mode toggle
+uniform float pp_toggle; // Per pixel mode
 
+// Vector attributes
+varying vec3 vNormal;
+varying vec3 vLight;
+varying vec3 vViewer;
+varying vec4 vColor;
 
-// Per pixel lighting
-varying vec3 pp_normal;
-varying vec3 pp_light;
-
-vec3 blinnPhongLighting(){
-    vec3 nEC = nMat * normalize(gl_Normal);
+vec3 blinnPhong(){
+    vec3 nEC = vNormal;
     // vec3 nEC = gl_Normal;
     // Used to accumulate ambient, diffuse and specular contributions
     // Note: it is a vec3 being constructed with a single value which
@@ -32,7 +31,7 @@ vec3 blinnPhongLighting(){
 
     // Light direction vector. Default for LIGHT0 is a directional light
     // along z axis for all vertices, i.e. <0, 0, 1>
-    vec3 lEC = vec3( 0, 0, 1 );
+    vec3 lEC = vLight;
 
     // Test if normal points towards light source, i.e. if polygon
     // faces toward the light - if not then no diffuse or specular
@@ -45,7 +44,7 @@ vec3 blinnPhongLighting(){
         // Ld: default diffuse light color for GL_LIGHT0 is white (1.0, 1.0, 1.0).
         // Md: default diffuse material color is grey (0.8, 0.8, 0.8).
         vec3 Ld = vec3(1.0);
-        vec3 Md = vec3(0.8);
+        vec3 Md = vec3(0.0, 0.5, 0.5);
         // Need normalized normal to calculate cosÎ¸,
         // light vector <0, 0, 1> is already normalized
         nEC = normalize(nEC);
@@ -59,10 +58,10 @@ vec3 blinnPhongLighting(){
         // specular reflection. Need to set it to same value for fixed
         // pipeline lighting otherwise will look different.
         vec3 Ls = vec3(1.0);
-        vec3 Ms = vec3(1.0);
+        vec3 Ms = vec3(0.8);
         // Default viewer is at infinity along z axis <0, 0, 1> i.e. a
         // non local viewer (see glLightModel and GL_LIGHT_MODEL_LOCAL_VIEWER)
-        vec3 vEC = vec3(0.0, 0.0, 1.0);
+        vec3 vEC = vViewer;
         // Blinn-Phong half vector (using a single capital letter for
         // variable name!). Need normalized H (and nEC, above) to calculate cosÎ±.
         vec3 H = vec3(lEC + vEC);
@@ -73,29 +72,12 @@ vec3 blinnPhongLighting(){
         vec3 specular = vec3(Ls * Ms * pow(NdotH, shininess));
         color += specular;
     }
-
     return color;
 }
 
 // MAIN
 void main(void)
 {
-
-    if(passthrough == 0.0){ // Fixed mode disabled
-        // Use the color calculated from computeLighting()
-        // As there are no normals being passed to the shader
-        n_color = gl_Color;
-    }
-    else{ // Fixed mode enabled
-        // Calculate lighting using blinnPhong
-        vec3 color = blinnPhongLighting();
-        n_color = vec4(color, 1);
-
-        // For per pixel lighting
-        pp_normal = normalize(nMat * gl_Normal);
-        pp_light = normalize(vec3(0, 0, 1));
-    }
-
     // Equivalent to: gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_Vertex
     // os - object space, es - eye space, cs - clip space
     vec4 osVert = gl_Vertex;
@@ -103,4 +85,23 @@ void main(void)
     vec4 csVert = gl_ProjectionMatrix * esVert;
     gl_Position = csVert;
 
+    if(passthrough == 0.0){
+        vColor = gl_Color;
+    }
+    else{
+
+        if(pp_toggle == 1.0){ // Per pixel
+            // Interpolate values
+            vNormal = normalize(nMat * gl_Normal);
+            vLight = normalize(vec3(0, 0, 1));
+            vViewer = normalize(vec3(0, 0, 1));
+        }
+        else{ // Per vertex
+            // Calculate lighting using blinnPhong
+            vNormal = nMat * normalize(gl_Normal);
+            vLight = vec3(0, 0, 1);
+            vViewer = vec3(0, 0, 1);
+            vColor = vec4(blinnPhong(), 1);
+        }
+    }
 }

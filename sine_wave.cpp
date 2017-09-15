@@ -150,8 +150,8 @@ void init(void)
     GLenum err = glewInit();
     if (GLEW_OK != err)
     {
-      /* Problem: glewInit failed, something is seriously wrong. */
-      fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
+        /* Problem: glewInit failed, something is seriously wrong. */
+        fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
     }
     #endif
 
@@ -329,7 +329,7 @@ glm::vec3 computeLighting(glm::vec3 & rEC, glm::vec3 & nEC)
             // Ld: default diffuse light color for GL_LIGHT0 is white (1.0, 1.0, 1.0).
             // Md: default diffuse material color is grey (0.8, 0.8, 0.8).
             glm::vec3 Ld(1.0);
-            glm::vec3 Md(0.8);
+            glm::vec3 Md(0.0, 0.5, 0.5);
             // Need normalized normal to calculate cosÎ¸,
             // light vector <0, 0, 1> is already normalized
             nEC = glm::normalize(nEC);
@@ -345,7 +345,7 @@ glm::vec3 computeLighting(glm::vec3 & rEC, glm::vec3 & nEC)
         // pipeline lighting otherwise will look different.
         if(g.specular){
             glm::vec3 Ls(1.0);
-            glm::vec3 Ms(1.0);
+            glm::vec3 Ms(0.8);
             // Default viewer is at infinity along z axis <0, 0, 1> i.e. a
             // non local viewer (see glLightModel and GL_LIGHT_MODEL_LOCAL_VIEWER)
             glm::vec3 vEC(0.0, 0.0, 1.0);
@@ -633,7 +633,7 @@ void drawSineWave(int tess)
 
 void showInfo(){
     printf("\n\nShaders \t\t(%i)\nFixed Lighting \t\t(%i)\nFrameRate \t\t(%.0f)\n", g.shader, g.fixed, g.frameRate);
-    printf("Frametime \t\t(%.0f)\nlightningMode \t\t(%i)\n", 1.0 / g.frameRate * 1000.0, g.lightingMode);
+    printf("Frametime \t\t(%.0f)\nPer Pixel \t\t(%i)\n", 1.0 / g.frameRate * 1000.0, g.lightingMode);
 }
 
 void idle()
