@@ -80,6 +80,13 @@ typedef struct {
 } Global;
 Global g = { wave, false, 0.0, 0.0, fill, true, false, false, false, 0, 0, 128, 3, 0, 0.0, 1.0, 0, false, false, false, true, true, true, false, false,};
 
+typedef struct {
+    Vertex* verts;
+    unsigned int* indices;
+    size_t numVerts, numIndices;
+    GLuint vbo, ibo, tbo;
+} Mesh;
+
 typedef enum { inactive, rotate, pan, zoom } CameraControl;
 
 struct camera_t {
@@ -138,6 +145,29 @@ void printMatrixColumnMajor(float *m, int n)
     printf("\n");
 }
 
+Mesh* createMesh(size_t numVerts, size_t numIndices){
+
+}
+
+void buildVBO(int tess){
+    float stepSize = 2.0 / tess;
+    glm::vec3 r, n, rEC, nEC;
+    int i, j;
+
+    for (j = 0; j < tess; j++) {
+        for (i = 0; i <= tess; i++) {
+            r.x = -1.0 + i * stepSize;
+            r.y = 0.0;
+            r.z = -1.0 + j * stepSize;
+
+            glVertex3fv(&rEC[0]);
+
+            r.z += stepSize;
+
+            glVertex3fv(&rEC[0]);
+        }
+    }
+}
 
 void init(void)
 {
@@ -387,8 +417,6 @@ void setupShader(){
 
 void drawGrid(int tess)
 {
-    if (g.shader == 1) glUseProgram(shaderProgram);
-    else glUseProgram(0);
     float stepSize = 2.0 / tess;
     glm::vec3 r, n, rEC, nEC;
     int i, j;
@@ -492,10 +520,7 @@ void drawGrid(int tess)
         printf("%s %d\n", __FILE__, __LINE__);
         printf("displaySineWave: %s\n", gluErrorString(err));
     }
-    glUseProgram(0);
 }
-
-
 
 void drawSineWave(int tess)
 {
