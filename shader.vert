@@ -1,12 +1,19 @@
 varying float depth;
 varying vec4 n_color;
 
-float shininess = 50.0;
+float shininess = 20.0;
 float NdotL;
 
+// ModelViewMatrix and Normal Matrix
 uniform mat4 mvMat;
 uniform mat3 nMat;
-uniform float passthrough;
+
+uniform float passthrough; // Fixed mode toggle
+
+
+// Per pixel lighting
+varying vec3 pp_normal;
+varying vec3 pp_light;
 
 vec3 blinnPhongLighting(){
     vec3 nEC = nMat * normalize(gl_Normal);
@@ -83,8 +90,11 @@ void main(void)
         // Calculate lighting using blinnPhong
         vec3 color = blinnPhongLighting();
         n_color = vec4(color, 1);
-    }
 
+        // For per pixel lighting
+        pp_normal = normalize(nMat * gl_Normal);
+        pp_light = normalize(vec3(0, 0, 1));
+    }
 
     // Equivalent to: gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_Vertex
     // os - object space, es - eye space, cs - clip space
@@ -92,4 +102,5 @@ void main(void)
     vec4 esVert = mvMat * osVert;
     vec4 csVert = gl_ProjectionMatrix * esVert;
     gl_Position = csVert;
+
 }

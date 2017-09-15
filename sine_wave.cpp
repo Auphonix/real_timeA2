@@ -76,8 +76,9 @@ typedef struct {
     bool specular;
     bool ambient;
     bool shader;
+    bool lightingMode; // T Per-Pixel, F Per-Vertex
 } Global;
-Global g = { wave, false, 0.0, 0.0, fill, true, false, false, false, 0, 0, 128, 3, 0, 0.0, 1.0, 0, false, false, false, true, true, true, 0 };
+Global g = { wave, false, 0.0, 0.0, fill, true, false, false, false, 0, 0, 128, 3, 0, 0.0, 1.0, 0, false, false, false, true, true, true, false, false,};
 
 typedef enum { inactive, rotate, pan, zoom } CameraControl;
 
@@ -374,8 +375,14 @@ void setupShader(){
     GLint nMat_loc = glGetUniformLocation(shaderProgram, "nMat");
     glUniformMatrix3fv(nMat_loc, 1, false, &normalMatrix[0][0]);
 
+    // Used so the shader can determine if fixed mode is active
     GLint passthrough_loc = glGetUniformLocation(shaderProgram, "passthrough");
     glUniform1f(passthrough_loc, float(g.fixed));
+
+    GLint pp_toggle_loc = glGetUniformLocation(shaderProgram, "pp_toggle");
+    glUniform1f(pp_toggle_loc, float(g.lightingMode));
+
+
 }
 
 void drawGrid(int tess)
@@ -625,7 +632,8 @@ void drawSineWave(int tess)
 }
 
 void showInfo(){
-    printf("Shaders (%i) | Fixed Lighting (%i) | \n", g.shader, g.fixed);
+    printf("\n\nShaders \t\t(%i)\nFixed Lighting \t\t(%i)\nFrameRate \t\t(%.0f)\n", g.shader, g.fixed, g.frameRate);
+    printf("Frametime \t\t(%.0f)\nlightningMode \t\t(%i)\n", 1.0 / g.frameRate * 1000.0, g.lightingMode);
 }
 
 void idle()
@@ -849,8 +857,11 @@ void keyboard(unsigned char key, int x, int y)
         g.waveDim = 2;
         glutPostRedisplay();
         break;
-        case 'g': // Toggle Shaderx
+        case 'g': // Toggle Shaders
         g.shader = !g.shader;
+        break;
+        case 'p': // Toggle Lighting mode
+        g.lightingMode = !g.lightingMode;
         break;
         case '1':
         g.ambient = !g.ambient;
