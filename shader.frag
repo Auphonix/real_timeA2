@@ -1,9 +1,11 @@
 
-uniform float passthrough; // Fixed mode toggle
+uniform float fixed_toggle; // Fixed mode toggle
 uniform float pp_toggle; // Per pixel toggle
+// T blinn-Phong, F = Phong
+uniform float light_model; // Toggle model
 
-float shininess = 50.0;
-float NdotL;
+uniform float shininess;
+float attenuation = 1.0;
 
 // ModelViewMatrix and Normal Matrix
 uniform mat4 mvMat;
@@ -33,7 +35,13 @@ vec3 blinnPhong(){
 
     // Light direction vector. Default for LIGHT0 is a directional light
     // along z axis for all vertices, i.e. <0, 0, 1>
-    vec3 lEC = vLight;
+    // vLight_pos = (mvMat * gl_Vertex).xyz;
+    // vec3 tmp = vLight + vLight_pos;
+    // vec3 lEC = normalize(tmp);
+    vec3 lEC;
+    if(light_model == 1.0) lEC = vLight;
+    else lEC = normalize(vLight);
+
 
     // Test if normal points towards light source, i.e. if polygon
     // faces toward the light - if not then no diffuse or specular
@@ -50,9 +58,9 @@ vec3 blinnPhong(){
         // Need normalized normal to calculate cosÎ¸,
         // light vector <0, 0, 1> is already normalized
         nEC = normalize(nEC);
-        NdotL = dot(nEC, lEC);
+        float NdotL = dot(nEC, lEC);
         vec3 diffuse = vec3(Ld * Md * NdotL);
-        color += diffuse;
+        //color += diffuse;
         // Blinn-Phong specular: S=LsÃ—MsÃ—cosâ¿Î±
         // Ls: default specular light color for LIGHT0 is white (1.0, 1.0, 1.0)
         // Ms: specular material color, also set to white (1.0, 1.0, 1.0),
@@ -64,24 +72,30 @@ vec3 blinnPhong(){
         // Default viewer is at infinity along z axis <0, 0, 1> i.e. a
         // non local viewer (see glLightModel and GL_LIGHT_MODEL_LOCAL_VIEWER)
         vec3 vEC = vViewer;
-        // Blinn-Phong half vector (using a single capital letter for
-        // variable name!). Need normalized H (and nEC, above) to calculate cosÎ±.
-        vec3 H = vec3(lEC + vEC);
-        H = normalize(H);
-        float NdotH = dot(nEC, H);
-        if (NdotH < 0.0) // Prevent negative
-        NdotH = 0.0;
-        vec3 specular = vec3(Ls * Ms * pow(NdotH, shininess));
-        color += specular;
+        vec3 specular;
+        if(light_model == 1.0){ // Blinn Phong
+            vec3 H = vec3(lEC + vEC);
+            H = normalize(H);
+            float NdotH = dot(nEC, H);
+            if (NdotH < 0.0) // Prevent negative
+            NdotH = 0.0;
+            specular = vec3(Ls * Ms * pow(NdotH, shininess));
+        }
+        else{ // Phong
+            vec3 viewDir = normalize(vEC);
+            vec3 reflectDir = reflect(-lEC, nEC);
+            float spec = max(dot(viewDir, reflectDir), 0.0);
+            specular = vec3(Ls * Ms * pow(spec, shininess));
+        }
+        color += attenuation * (diffuse + specular);
     }
     return color;
 }
 
 void main (void)
 {
-    if(pp_toggle == 1.0 && passthrough == 1.0){
+    if(pp_toggle == 1.0 && fixed_toggle == 1.0){
         gl_FragColor = vec4(blinnPhong(), 1);
-        // gl_FragColor = vec4(vNormal, 1);
     }
     else{
         gl_FragColor = vColor;

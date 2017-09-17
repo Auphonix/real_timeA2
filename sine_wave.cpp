@@ -33,6 +33,7 @@ clang -o sine_wave shaders.c sine_wave.cpp -framework Carbon -framework OpenGL -
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/constants.hpp>
 
+void buildVBO(int tess);
 
 typedef enum {
     d_drawSineWave,
@@ -79,8 +80,10 @@ typedef struct {
     bool shader;
     bool lightingMode; // T Per-Pixel, F Per-Vertex
     bool vbo;
+    bool lightingModel; // T blinn-Phong, F = Phong
+    bool lightingPos; // T directional, F = positional.
 } Global;
-Global g = { wave, false, 0.0, 0.0, fill, true, false, false, false, 0, 0, 128, 3, 0, 0.0, 1.0, 0, false, false, false, true, true, true, false, false, false};
+Global g = { wave, false, 0.0, 0.0, fill, true, false, false, false, 0, 0, 128, 3, 0, 0.0, 1.0, 0, false, true, false, true, true, true, false, false, false, true, true};
 
 typedef struct {
     float x, y, z;
@@ -114,7 +117,7 @@ glm::vec3 yellow(1.0, 1.0, 0.0);
 glm::vec3 white(1.0, 1.0, 1.0);
 glm::vec3 grey(0.8, 0.8, 0.8);
 glm::vec3 black(0.0, 0.0, 0.0);
-const float shininess = 50.0;
+float shininess = 50.0;
 
 const float milli = 1000.0;
 
@@ -174,49 +177,62 @@ void bindVBOs(GLuint vbo, GLuint ibo){
 
 void unbindVBOs(){
     int buffer;
+
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &buffer);
     if (buffer != 0) glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &buffer);
-    if (buffer != 0) glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    if (buffer != 0)glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
     glDisableClientState(GL_VERTEX_ARRAY);
 }
 
 void useVBO(){
+    bindVBOs(gridMesh->vbo, gridMesh->ibo);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
-    bindVBOs(gridMesh->vbo, gridMesh->ibo);
 
+    glPushAttrib(GL_CURRENT_BIT);
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glVertexPointer(3, GL_FLOAT, sizeof(Vertex), BUFFER_OFFSET(0));
     glNormalPointer(GL_FLOAT, sizeof(Vertex), BUFFER_OFFSET(sizeof(Vec3f)));
+
+    glDrawElements(GL_TRIANGLES, gridMesh->numIndices, GL_UNSIGNED_INT, BUFFER_OFFSET(0));
+
+    glPopAttrib();
     unbindVBOs();
 }
 
 void buildVBO(int tess){
     gridMesh = createMesh((tess + 1) * (tess * 1), tess * tess * 6);
+    float height = 2;
+    float width = 2;
+    float cols = tess;
+    float rows = tess;
 
-    float stepSize = 2.0 / tess;
-    glm::vec3 r, n, rEC, nEC;
-    int i, j;
+    // Vertices
+    float x, x0 = 0.5 * width, dx = width / (float)cols;
+    float z, z0 = 0.5 * height, dz = height / (float)rows;
+    for (size_t i = 0; i <= cols; ++i) {
+        x = i * dx - x0;
+        for (size_t j = 0; j <= rows; ++j) {
+            z = j * dz - z0;
+            size_t index = i * (rows + 1) + j;
+            gridMesh->verts[index].pos = (Vec3f) { x, 0, z };
+            gridMesh->verts[index].normal.y = 1.0;
+        }
+    }
 
-    // Verts
+    // Indices i.e. elements
     size_t index = 0;
-    for (j = 0; j < tess; j++) {
-        for (i = 0; i <= tess; i++) {
-            r.x = -1.0 + i * stepSize;
-            r.y = 0.0;
-            r.z = -1.0 + j * stepSize;
-
-            gridMesh->verts[index].pos = (Vec3f){r.x, r.y, r.z};
-            gridMesh->verts[index].normal.y = 1.0;
-            gridMesh->indices[index] = index;
-            index++;
-            r.z += stepSize;
-            gridMesh->verts[index].pos = (Vec3f){r.x, r.y, r.z};
-            gridMesh->verts[index].normal.y = 1.0;
-            gridMesh->indices[index] = index;
-            index++;
+    for (size_t j = 0; j < cols; ++j) {
+        for (size_t i = 0; i < rows ; ++i) {
+            gridMesh->indices[index++] = j * (rows + 1) + i;
+            gridMesh->indices[index++] = (j + 1) * (rows + 1) + i;
+            gridMesh->indices[index++] = j * (rows + 1) + i + 1;
+            gridMesh->indices[index++] = j * (rows + 1) + i + 1;
+            gridMesh->indices[index++] = (j + 1) * (rows + 1) + i;
+            gridMesh->indices[index++] = (j + 1) * (rows + 1) + i + 1;
         }
     }
 
@@ -225,11 +241,8 @@ void buildVBO(int tess){
     glGenBuffers(1, &gridMesh->ibo);
     bindVBOs(gridMesh->vbo, gridMesh->ibo);
     glBufferData(GL_ARRAY_BUFFER, gridMesh->numVerts * sizeof(Vertex), gridMesh->verts, GL_STATIC_DRAW);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, gridMesh->numIndices *sizeof(unsigned int), gridMesh->indices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, gridMesh->numIndices * sizeof(unsigned int), gridMesh->indices, GL_STATIC_DRAW);
     unbindVBOs();
-
-
-
 }
 
 void init(void)
@@ -257,6 +270,8 @@ void init(void)
     if (g.twoside)
     glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
     glEnable(GL_DEPTH_TEST);
+
+    buildVBO(g.tess);
 }
 
 void reshape(int w, int h)
@@ -318,13 +333,6 @@ void drawVector(glm::vec3 & o, glm::vec3 & v, float s, bool normalize, glm::vec3
     glPopAttrib();
 }
 
-// Console performance meter
-void consolePM()
-{
-    printf("frame rate (f/s):  %5.0f\n", g.frameRate);
-    printf("frame time (ms/f): %5.0f\n", 1.0 / g.frameRate * 1000.0);
-    printf("tesselation:       %5d\n", g.tess);
-}
 
 // On screen display
 void displayOSD()
@@ -409,7 +417,9 @@ glm::vec3 computeLighting(glm::vec3 & rEC, glm::vec3 & nEC)
     }
     // Light direction vector. Default for LIGHT0 is a directional light
     // along z axis for all vertices, i.e. <0, 0, 1>
-    glm::vec3 lEC( 0, 0, 1 );
+    glm::vec3 lEC(0.5);
+    if(g.lightingModel == 1.0) lEC = lEC;
+    else lEC = normalize(lEC);
 
     // Test if normal points towards light source, i.e. if polygon
     // faces toward the light - if not then no diffuse or specular
@@ -444,12 +454,21 @@ glm::vec3 computeLighting(glm::vec3 & rEC, glm::vec3 & nEC)
             glm::vec3 vEC(0.0, 0.0, 1.0);
             // Blinn-Phong half vector (using a single capital letter for
             // variable name!). Need normalized H (and nEC, above) to calculate cosÎ±.
-            glm::vec3 H(lEC + vEC);
-            H = glm::normalize(H);
-            float NdotH = glm::dot(nEC, H);
-            if (NdotH < 0.0) // Prevent negative
-            NdotH = 0.0;
-            glm::vec3 specular(Ls * Ms * powf(NdotH, shininess));
+            glm::vec3 specular;
+            if(g.lightingModel == 1.0){ // Blinn Phong
+                glm::vec3 H = glm::vec3(lEC + vEC);
+                H = normalize(H);
+                float NdotH = dot(nEC, H);
+                if (NdotH < 0.0) // Prevent negative
+                NdotH = 0.0;
+                specular = glm::vec3(Ls * Ms * powf(NdotH, shininess));
+            }
+            else{ // Phong
+                glm::vec3 viewDir = normalize(vEC);
+                glm::vec3 reflectDir = reflect(-lEC, nEC);
+                float spec = fmax(dot(viewDir, reflectDir), 0.0);
+                specular = glm::vec3(Ls * Ms * powf(spec, shininess));
+            }
             color += specular;
         }
     }
@@ -468,12 +487,30 @@ void setupShader(){
     GLint nMat_loc = glGetUniformLocation(shaderProgram, "nMat");
     glUniformMatrix3fv(nMat_loc, 1, false, &normalMatrix[0][0]);
 
+    GLint t_loc = glGetUniformLocation(shaderProgram, "t");
+    glUniform1f(t_loc, g.t);
+
+    GLint shininess_loc = glGetUniformLocation(shaderProgram, "shininess");
+    glUniform1f(shininess_loc, shininess);
+
+    GLint waveDim = glGetUniformLocation(shaderProgram, "waveDim");
+    glUniform1f(waveDim, float(g.waveDim));
+
     // Used so the shader can determine if fixed mode is active
-    GLint passthrough_loc = glGetUniformLocation(shaderProgram, "passthrough");
-    glUniform1f(passthrough_loc, float(g.fixed));
+    GLint fixed_toggle_loc = glGetUniformLocation(shaderProgram, "fixed_toggle");
+    glUniform1f(fixed_toggle_loc, float(g.fixed));
 
     GLint pp_toggle_loc = glGetUniformLocation(shaderProgram, "pp_toggle");
     glUniform1f(pp_toggle_loc, float(g.lightingMode));
+
+    GLint vbo_toggle_loc = glGetUniformLocation(shaderProgram, "vbo_toggle");
+    glUniform1f(vbo_toggle_loc, float(g.vbo));
+
+    GLint light_model_loc = glGetUniformLocation(shaderProgram, "light_model");
+    glUniform1f(light_model_loc, float(g.lightingModel));
+
+    GLint light_pos = glGetUniformLocation(shaderProgram, "light_pos");
+    glUniform1f(light_pos, float(g.lightingPos));
 
 
 }
@@ -523,6 +560,7 @@ void drawGrid(int tess)
                 if(g.shader && g.fixed) nEC = glm::normalize(n);
                 else nEC = normalMatrix * glm::normalize(n);
                 if (g.fixed) {
+
                     glNormal3fv(&nEC[0]);
                 } else {
                     glm::vec3 c = computeLighting(rEC, nEC);
@@ -621,18 +659,24 @@ void drawSineWave(int tess)
             r.z = -1.0 + j * stepSize;
 
             if (g.waveDim == 2) {
+                if(!g.shader || !g.fixed)
                 r.y = A1 * sinf(k1 * r.x + w1 * t);
                 if (g.lighting) {
-                    n.x = - A1 * k1 * cosf(k1 * r.x + w1 * t);
-                    n.y = 1.0;
-                    n.z = 0.0;
+                    if(!g.shader || !g.fixed){
+                        n.x = - A1 * k1 * cosf(k1 * r.x + w1 * t);
+                        n.y = 1.0;
+                        n.z = 0.0;
+                    }
                 }
             } else if (g.waveDim == 3) {
+                if(!g.shader || !g.fixed)
                 r.y = A1 * sinf(k1 * r.x + w1 * t) + A2 * sinf(k2 * r.z + w2 * t);
                 if (g.lighting) {
-                    n.x = - A1 * k1 * cosf(k1 * r.x + w1 * t);
-                    n.y = 1.0;
-                    n.z = - A2 * k2 * cosf(k2 * r.z + w2 * t);
+                    if(!g.shader || !g.fixed){
+                        n.x = - A1 * k1 * cosf(k1 * r.x + w1 * t);
+                        n.y = 1.0;
+                        n.z = - A2 * k2 * cosf(k2 * r.z + w2 * t);
+                    }
                 }
             }
             // IF shader is used use modelViewMatrix on GPU
@@ -720,9 +764,13 @@ void drawSineWave(int tess)
 }
 
 void showInfo(){
-    printf("\n\nShaders \t\t(%i)\nFixed Lighting \t\t(%i)\nFrameRate \t\t(%.0f)\n", g.shader, g.fixed, g.frameRate);
+    printf("\n\nTesselation \t\t(%i)\nFrameRate \t\t(%.0f)\n", g.tess, g.frameRate);
     printf("Frametime \t\t(%.0f)\nPer Pixel \t\t(%i)\n", 1.0 / g.frameRate * 1000.0, g.lightingMode);
-    printf("VBO \t\t\t(%i)\n", g.vbo);
+    printf("Fixed \t\t\t(%i)\nVBO \t\t\t(%i)\n",g.fixed, g.vbo);
+    printf("Shaders \t\t(%i)\nWaveDim \t\t(%i)\n", g.shader, g.waveDim);
+    printf("Shininess \t\t(%.0f)\n", shininess);
+    printf("Model \t\t\t(%s)\n", g.lightingModel ? "Blinn-Phong" : "Phong");
+    printf("Lightpos \t\t(%s)\n", g.lightingPos ? "Directional" : "Positional");
 }
 
 void idle()
@@ -746,9 +794,10 @@ void idle()
         g.frameRate = g.frameCount / dt;
         if (debug[d_OSD])
         printf("dt %f framecount %d framerate %f\n", dt, g.frameCount, g.frameRate);
-        showInfo();
         g.lastStatsDisplayT = t;
         g.frameCount = 0;
+
+        if(g.consolePM) showInfo();
     }
 
     glutPostRedisplay();
@@ -807,9 +856,6 @@ void displayMultiView()
     if (g.displayOSD)
     displayOSD();
 
-    if (g.consolePM)
-    consolePM();
-
     g.frameCount++;
 
     glutSwapBuffers();
@@ -850,6 +896,7 @@ void display()
     else glUseProgram(0);
 
     if (g.vbo == true){
+        buildVBO(g.tess);
         useVBO();
     }
     else{
@@ -863,9 +910,6 @@ void display()
 
     if (g.displayOSD)
     displayOSD();
-
-    if (g.consolePM)
-    consolePM();
 
     glutSwapBuffers();
 
@@ -899,7 +943,7 @@ void keyboard(unsigned char key, int x, int y)
         g.fixed = !g.fixed;
         glutPostRedisplay();
         break;
-        case 'm':
+        case 'w':
         printf("polygonMode: %d\n", g.polygonMode);
         if (g.polygonMode == line)
         g.polygonMode = fill;
@@ -933,7 +977,7 @@ void keyboard(unsigned char key, int x, int y)
         break;
         case 'v':
         g.vbo = !g.vbo;
-        printf("vbos not implemented\n");
+        printf("vbos partially implemented\n");
         break;
         case '+':
         g.tess *= 2;
@@ -956,6 +1000,18 @@ void keyboard(unsigned char key, int x, int y)
         break;
         case 'p': // Toggle Lighting mode
         g.lightingMode = !g.lightingMode;
+        break;
+        case 'h':
+        shininess--;
+        break;
+        case 'H':
+        shininess++;
+        break;
+        case 'm':
+        g.lightingModel = !g.lightingModel;
+        break;
+        case 'd':
+        g.lightingPos = !g.lightingPos;
         break;
         case '1':
         g.ambient = !g.ambient;

@@ -1,18 +1,40 @@
-float shininess = 50.0;
-float NdotL;
-
 // ModelViewMatrix and Normal Matrix
 uniform mat4 mvMat;
 uniform mat3 nMat;
 
-uniform float passthrough; // Fixed mode toggle
+uniform float fixed_toggle; // Fixed mode toggle
 uniform float pp_toggle; // Per pixel mode
+uniform float vbo_toggle; // Toggle VBOs
+
+// T blinn-Phong, F = Phong
+uniform float light_model; // Toggle model
+// T directional, F = positional.
+uniform float light_pos; // Toggle light pos
+
 
 // Vector attributes
 varying vec3 vNormal;
 varying vec3 vLight;
 varying vec3 vViewer;
 varying vec4 vColor;
+
+// Vertex + Normal calculations
+vec3 n;
+vec4 vert = gl_Vertex;
+varying vec3 vLight_pos;
+
+vec3 surfaceToLight;
+float attenuation = 1.0;
+
+varying vec4 esVert;
+
+// Values to calculate sine wave
+float M_PI = acos(-1.0), A1 = 0.25, k1 = 2.0 * M_PI, w1 = 0.25;
+float A2 = 0.25, k2 = 2.0 * M_PI, w2 = 0.25;
+uniform float t; // Get time from main application
+uniform float waveDim;
+
+uniform float shininess;
 
 vec3 blinnPhong(){
     vec3 nEC = vNormal;
@@ -31,7 +53,13 @@ vec3 blinnPhong(){
 
     // Light direction vector. Default for LIGHT0 is a directional light
     // along z axis for all vertices, i.e. <0, 0, 1>
-    vec3 lEC = vLight;
+    // vLight_pos = (mvMat * gl_Vertex).xyz;
+    // vec3 tmp = vLight + vLight_pos;
+    // vec3 lEC = normalize(tmp);
+    vec3 lEC;
+    if(light_model == 1.0) lEC = vLight;
+    else lEC = normalize(vLight);
+
 
     // Test if normal points towards light source, i.e. if polygon
     // faces toward the light - if not then no diffuse or specular
@@ -48,9 +76,9 @@ vec3 blinnPhong(){
         // Need normalized normal to calculate cosÎ¸,
         // light vector <0, 0, 1> is already normalized
         nEC = normalize(nEC);
-        NdotL = dot(nEC, lEC);
+        float NdotL = dot(nEC, lEC);
         vec3 diffuse = vec3(Ld * Md * NdotL);
-        color += diffuse;
+        //color += diffuse;
         // Blinn-Phong specular: S=LsÃ—MsÃ—cosâ¿Î±
         // Ls: default specular light color for LIGHT0 is white (1.0, 1.0, 1.0)
         // Ms: specular material color, also set to white (1.0, 1.0, 1.0),
@@ -62,44 +90,71 @@ vec3 blinnPhong(){
         // Default viewer is at infinity along z axis <0, 0, 1> i.e. a
         // non local viewer (see glLightModel and GL_LIGHT_MODEL_LOCAL_VIEWER)
         vec3 vEC = vViewer;
-        // Blinn-Phong half vector (using a single capital letter for
-        // variable name!). Need normalized H (and nEC, above) to calculate cosÎ±.
-        vec3 H = vec3(lEC + vEC);
-        H = normalize(H);
-        float NdotH = dot(nEC, H);
-        if (NdotH < 0.0) // Prevent negative
-        NdotH = 0.0;
-        vec3 specular = vec3(Ls * Ms * pow(NdotH, shininess));
-        color += specular;
+        vec3 specular;
+        if(light_model == 1.0){ // Blinn Phong
+            vec3 H = vec3(lEC + vEC);
+            H = normalize(H);
+            float NdotH = dot(nEC, H);
+            if (NdotH < 0.0) // Prevent negative
+            NdotH = 0.0;
+            specular = vec3(Ls * Ms * pow(NdotH, shininess));
+        }
+        else{ // Phong
+            vec3 viewDir = normalize(vEC);
+            vec3 reflectDir = reflect(-lEC, nEC);
+            float spec = max(dot(viewDir, reflectDir), 0.0);
+            specular = vec3(Ls * Ms * pow(spec, shininess));
+        }
+        color += attenuation * (diffuse + specular);
     }
     return color;
+}
+
+void calcVertex(){
+    // Only calculate normals and y pos for fixed mode
+    if(fixed_toggle == 1.0){
+        if (waveDim == 2.0){
+            vert.y = A1 * sin(k1 * vert.x + w1 * t);
+            n.x = - A1 * k1 * cos(k1 * vert.x + w1 * t);
+            n.y = 1.0;
+            n.z = 0.0;
+        }
+        if (waveDim == 3.0){
+            vert.y =  A1 * sin(k1 * vert.x + w1 * t) + A2 * sin(k2 * vert.z + w2 * t);
+            n.x = - A1 * k1 * cos(k1 * vert.x + w1 * t);
+            n.y = 1.0;
+            n.z = - A2 * k2 * cos(k2 * vert.z + w2 * t);
+        }
+    }
 }
 
 // MAIN
 void main(void)
 {
+    // Calculate y pos and normals on GPU
+    calcVertex();
+
     // Equivalent to: gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_Vertex
     // os - object space, es - eye space, cs - clip space
-    vec4 osVert = gl_Vertex;
-    vec4 esVert = mvMat * osVert;
+    vec4 osVert = vert;
+    esVert = mvMat * osVert;
     vec4 csVert = gl_ProjectionMatrix * esVert;
     gl_Position = csVert;
 
-    if(passthrough == 0.0){
+    if(fixed_toggle == 0.0){ // not fixed, pass color from main app
         vColor = gl_Color;
     }
     else{
-
         if(pp_toggle == 1.0){ // Per pixel
             // Interpolate values
-            vNormal = normalize(nMat * gl_Normal);
-            vLight = normalize(vec3(0, 0, 1));
+            vNormal = normalize(nMat * n);
+            vLight = vec3(0.5, 0.5, 0.5);
             vViewer = normalize(vec3(0, 0, 1));
         }
         else{ // Per vertex
             // Calculate lighting using blinnPhong
-            vNormal = nMat * normalize(gl_Normal);
-            vLight = vec3(0, 0, 1);
+            vNormal = nMat * normalize(n);
+            vLight = vec3(0.5, 0.5, 0.5);
             vViewer = vec3(0, 0, 1);
             vColor = vec4(blinnPhong(), 1);
         }
